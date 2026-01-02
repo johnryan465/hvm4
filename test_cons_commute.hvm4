@@ -1,0 +1,24 @@
+// Test 2: Constructor Commutation
+// Scenario: We pass a Data Structure (Constructor) into a MOV node.
+// Both branches receive a fully reconstructed copy.
+
+@test_cons_commute = 
+  // 1. Create a Pair (1, 2)
+  ! data = #Pair{1, 2};
+  
+  // 2. Put it in a MOV node
+  % moved = data;
+  
+  // 3. Distribute to two branches (auto-dup)
+  (λ&m.
+    // Branch A takes m₀ and extracts the first element.
+    ! val_a = (λp. λ{ #Pair: λa. λb. a }(p))(m₀);
+    
+    // Branch B takes m₁ and extracts the second element.
+    ! val_b = (λp. λ{ #Pair: λa. λb. b }(p))(m₁);
+    
+    // 4. Result should be #Pair{1, 2}
+    #Pair{val_a, val_b}
+  )(moved)
+
+@main = @test_cons_commute

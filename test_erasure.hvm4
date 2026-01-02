@@ -1,0 +1,22 @@
+// Test 3: Erasure Handling
+// We MOV a value, but then one of the branches gets Erased.
+
+@test_erasure =
+  // 1. Create a value
+  ! val = 42;
+  
+  // 2. Move it
+  % m = val;
+  
+  // 3. Share it and erase one branch
+  (λ&m_dup.
+    // Branch A: Consumes the value
+    ! res = m_dup₀;
+    
+    // Branch B: Erased
+    ! dummy = (λx. &{})(m_dup₁);
+    
+    res
+  )(m)
+
+@main = @test_erasure
