@@ -4,23 +4,13 @@
 // % B = y
 // K ← &L{A,B}
 fn Term wnf_mov_sup(u32 lab, u32 loc, u8 side, Term sup) {
-  // If the binder already contains a SUP, just take our side (FREE)
-  Term cell = heap_read(loc);
-  if (term_tag(cell) == SUP && term_ext(cell) == lab) {
-    return heap_read(term_val(cell) + side);
-  }
-
   u32 s_lab = term_ext(sup);
   if (lab == s_lab) {
     ITRS++;
     u32  s_loc = term_val(sup);
     Term tm0   = heap_read(s_loc + 0);
     Term tm1   = heap_read(s_loc + 1);
-
-    // Update the MOV binder with a SUP so other GOT terms can find their branch
-    heap_set(loc, term_new_sup(lab, tm0, tm1));
-
-    return side == 0 ? tm0 : tm1;
+    return heap_subst_cop(side, loc, tm0, tm1);
   } else {
     // ITRS++; // Commutation is free
     u32  s_loc = term_val(sup);
