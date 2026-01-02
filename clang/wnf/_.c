@@ -232,6 +232,11 @@ __attribute__((hot)) fn Term wnf(Term term) {
         goto enter;
       }
 
+      case UNS: {
+        next = wnf_uns(next);
+        goto enter;
+      }
+
       case RED:
       case NAM:
       case BJV:
