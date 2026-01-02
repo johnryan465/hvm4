@@ -367,7 +367,7 @@ fn void print_term_go(FILE *f, Term term, u32 depth, PrintState *st) {
           val = term_sub_set(val, 0);
           print_term_mode(f, val, depth, 0, 0, 0, st);
         } else {
-          print_term_mode(f, term_new_got(bind), depth, 0, 0, 0, st);
+          print_term_mode(f, term_new_got(0, 0, bind), depth, 0, 0, 0, st);
         }
       } else {
         u32 nam = (lvl > st->subst_len) ? (lvl - st->subst_len) : 0;

@@ -263,7 +263,7 @@ static char  *PARSE_SEEN_FILES[1024];
 static u32    PARSE_SEEN_FILES_LEN = 0;
 static PBind  PARSE_BINDS[16384];
 static u32    PARSE_BINDS_LEN = 0;
-static u32    PARSE_FRESH_LAB = 0x800000; // start at 2^23 to avoid collision with user labels
+static u32    PARSE_FRESH_LAB = 0x400000; // start at 2^22 to avoid collision with user labels and fit in 24-bit EXT with side bit
 static int    PARSE_FORK_SIDE = -1;      // -1 = off, 0 = left branch (DP0), 1 = right branch (DP1)
 
 // Term
@@ -415,6 +415,7 @@ static int    PARSE_FORK_SIDE = -1;      // -1 = off, 0 = left branch (DP0), 1 =
 #include "wnf/app_nam.c"
 #include "wnf/app_dry.c"
 #include "wnf/app_lam.c"
+#include "wnf/app_mov.c"
 #include "wnf/app_sup.c"
 #include "wnf/app_inc.c"
 #include "wnf/app_mat_sup.c"

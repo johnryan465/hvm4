@@ -6,6 +6,11 @@
 // X₀ ← T{A₀,B₀,...}
 // X₁ ← T{A₁,B₁,...}
 fn Term wnf_dup_nod(u32 lab, u32 loc, u8 side, Term term) {
+  if (term_tag(term) == GOT) {
+    Term r0 = term_new_got(0, lab, term_val(term));
+    Term r1 = term_new_got(1, lab, term_val(term));
+    return heap_subst_cop(side, loc, r0, r1);
+  }
   ITRS++;
   u32 ari = term_arity(term);
   if (ari == 0) {
@@ -21,6 +26,7 @@ fn Term wnf_dup_nod(u32 lab, u32 loc, u8 side, Term term) {
   u32  r1_loc = r0_loc + ari;
   for (u32 i = 0; i < ari; i++) {
     heap_write(vals + i, heap_read(t_loc + i));
+    // Disabled MOV shunting optimization to test for correctness.
     Copy A = term_clone_at(vals + i, lab);
     heap_write(r0_loc + i, A.k0);
     heap_write(r1_loc + i, A.k1);

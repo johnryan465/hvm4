@@ -23,6 +23,16 @@ fn Term cnf_at(Term term, u32 depth) {
       return term;
     }
 
+    case GOT:
+    case DP0:
+    case DP1: {
+      u32 linked_loc = term_val(term);
+      if (linked_loc != 0 && !term_sub_get(heap_peek(linked_loc))) {
+        return cnf_at(heap_read(linked_loc), depth);
+      }
+      return term;
+    }
+
     case INC: {
       return term;
     }
@@ -73,7 +83,6 @@ fn Term cnf_at(Term term, u32 depth) {
       return term_new_sup(lab, lam0, lam1);
     }
 
-    case DUP:
     case MOV:
     case APP:
     case DRY:

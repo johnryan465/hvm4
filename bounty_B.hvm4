@@ -68,13 +68,13 @@
 @insert_B = λn.
   ! O = &{}
   ! I = (λ&p. λxs. λ&o. λi. λe.
-    % f = o
+    % & f = o
     ! O = λxs. f(@insert_B(p, xs))
     ! I = λxs. i(@insert_B(p, xs))
     ! E = f(@insert_B(p, @N))
     xs(O, I, E))
   ! E = λxs. λo. λ&i. λe.
-    % k = i
+    % & k = i
     ! O = λxs. k(xs)
     ! I = λxs. k(xs)
     ! E = k(@N)

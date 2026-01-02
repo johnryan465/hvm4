@@ -4,12 +4,15 @@
 // % B = b
 // ...
 // X ← T{A,B,...}
-fn Term wnf_mov_nod(u32 loc, Term term) {
+fn Term wnf_mov_nod(u32 lab, u32 loc, u8 side, Term term) {
   ITRS++;
   u32 ari = term_arity(term);
   if (ari == 0) {
     heap_subst_var(loc, term);
     return term;
+  }
+  if (lab == 0) {
+    lab = __atomic_fetch_add(&PARSE_FRESH_LAB, 1, __ATOMIC_RELAXED);
   }
   u32  t_loc = term_val(term);
   u32  t_ext = term_ext(term);
@@ -19,7 +22,7 @@ fn Term wnf_mov_nod(u32 loc, Term term) {
   u32  nod_loc = got_loc + ari;
   for (u32 i = 0; i < ari; i++) {
     heap_write(got_loc + i, heap_read(t_loc + i));
-    heap_write(nod_loc + i, term_new_got(got_loc + i));
+    heap_write(nod_loc + i, term_new_got(side, lab, got_loc + i));
   }
   Term res = term_new(0, t_tag, t_ext, nod_loc);
   heap_subst_var(loc, res);

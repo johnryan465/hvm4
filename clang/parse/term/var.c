@@ -19,7 +19,7 @@ fn Term parse_term_var(PState *s, u32 depth) {
     if (side != -1) {
       parse_error_var("- mov variable '%s' can't use subscript ₀ or ₁\n", nam);
     }
-    return term_new(0, BJM, 0, (u32)lvl);
+    return term_new(0, BJM, lab, (u32)lvl);
   }
   if (kind == PBIND_DUP) {
     // Handle dynamic dup binding (lab=0xFFFFFF marker)

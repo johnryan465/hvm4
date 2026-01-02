@@ -47,15 +47,19 @@ __attribute__((hot)) fn Term wnf(Term term) {
 
       case GOT: {
         u32 loc = term_val(next);
-        Term cell = heap_take(loc);
+        u32 ext = term_ext(next);
+        Term cell = heap_read(loc);
         if (term_sub_get(cell)) {
           next = term_sub_set(cell, 0);
           goto enter;
         }
-        if (term_tag(cell) == GOT) {
-          stack[s_pos++] = next;
-          whnf = cell;
-          goto apply;
+        // Fast-path: GOT-SUP annihilation
+        if (term_tag(cell) == SUP && term_ext(cell) == (ext >> 1)) {
+          ITRS++;
+          u32 s_loc = term_val(cell);
+          u8  side  = ext & 1;
+          next = heap_read(s_loc + side);
+          goto enter;
         }
         stack[s_pos++] = next;
         next = cell;
@@ -67,25 +71,6 @@ __attribute__((hot)) fn Term wnf(Term term) {
         Term fun = heap_read(loc);
         stack[s_pos++] = next;
         next = fun;
-        goto enter;
-      }
-
-      case DUP: {
-        u32  loc  = term_val(next);
-        Term body = heap_read(loc + 1);
-        next = body;
-        goto enter;
-      }
-
-      case MOV: {
-        u32  loc  = term_val(next);
-        Term body = heap_read(loc + 1);
-        next = body;
-        goto enter;
-      }
-
-      case UNS: {
-        next = wnf_uns(next);
         goto enter;
       }
 
@@ -125,7 +110,7 @@ __attribute__((hot)) fn Term wnf(Term term) {
             goto enter;
           }
           case BJM: {
-            next = wnf_alo_got(ls_loc, len, term_val(book));
+            next = wnf_alo_got(ls_loc, len, term_val(book), term_ext(book));
             goto enter;
           }
           case BJ0:
@@ -169,7 +154,7 @@ __attribute__((hot)) fn Term wnf(Term term) {
             goto enter;
           }
           case MOV: {
-            next = wnf_alo_mov(ls_loc, len, term_val(book));
+            next = wnf_alo_mov(ls_loc, len, term_val(book), term_ext(book));
             goto enter;
           }
           case NUM: {
@@ -230,6 +215,20 @@ __attribute__((hot)) fn Term wnf(Term term) {
         Term lab = heap_read(loc + 0);
         stack[s_pos++] = next;
         next = lab;
+        goto enter;
+      }
+
+      case DUP: {
+        u32  loc  = term_val(next);
+        Term body = heap_read(loc + 1);
+        next = body;
+        goto enter;
+      }
+
+      case MOV: {
+        u32  loc  = term_val(next);
+        Term body = heap_read(loc + 1);
+        next = body;
         goto enter;
       }
 
@@ -299,6 +298,10 @@ __attribute__((hot)) fn Term wnf(Term term) {
             case LAM: {
               next = wnf_app_lam(whnf, arg);
               goto enter;
+            }
+            case MOV: {
+              whnf = wnf_app_mov(whnf, arg);
+              continue;
             }
             case SUP: {
               whnf = wnf_app_sup(frame, whnf);
@@ -678,10 +681,13 @@ __attribute__((hot)) fn Term wnf(Term term) {
         // -----------------------------------------------------------------------
         case GOT: {
           u32 loc = term_val(frame);
+          u32 ext = term_ext(frame);
+          u32 lab = ext >> 1;
+          u8  side = ext & 1;
 
           switch (term_tag(whnf)) {
             case GOT: {
-              Term val = wnf_mov_mov(loc, whnf);
+              Term val = wnf_mov_mov(loc, whnf, lab, side);
               stack[s_pos++] = frame;
               next = val;
               goto enter;
@@ -691,29 +697,29 @@ __attribute__((hot)) fn Term wnf(Term term) {
             case BJM:
             case BJ0:
             case BJ1: {
-              whnf = wnf_mov_nam(loc, whnf);
+              whnf = wnf_mov_nam(lab, loc, side, whnf);
               continue;
             }
             case DRY: {
-              whnf = wnf_mov_dry(loc, whnf);
+              whnf = wnf_mov_dry(lab, loc, side, whnf);
               continue;
             }
             case RED: {
-              whnf = wnf_mov_red(loc, whnf);
+              whnf = wnf_mov_red(lab, loc, side, whnf);
               continue;
             }
             case LAM: {
-              whnf = wnf_mov_lam(loc, whnf);
+              whnf = wnf_mov_lam(lab, loc, side, whnf);
               continue;
             }
             case SUP: {
-              next = wnf_mov_sup(loc, whnf);
+              next = wnf_mov_sup(lab, loc, side, whnf);
               goto enter;
             }
             case ERA:
             case ANY:
             case NUM: {
-              whnf = wnf_mov_nod(loc, whnf);
+              whnf = wnf_mov_nod(lab, loc, side, whnf);
               continue;
             }
             // case APP: // !! DO NOT ADD: GOT does not interact with APP.
@@ -727,13 +733,13 @@ __attribute__((hot)) fn Term wnf(Term term) {
             case DUP:
             case MOV:
             case C00 ... C16: {
-              next = wnf_mov_nod(loc, whnf);
+              next = wnf_mov_nod(lab, loc, side, whnf);
               goto enter;
             }
             default: {
               u64 new_loc = heap_alloc(1);
               heap_set(new_loc, whnf);
-              Term got = term_new_got(new_loc);
+              Term got = term_new_got(side, lab, new_loc);
               heap_subst_var(loc, got);
               whnf = got;
               continue;

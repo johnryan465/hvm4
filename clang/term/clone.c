@@ -1,4 +1,8 @@
 fn Copy term_clone_at(u32 loc, u32 lab) {
+  Term val = heap_read(loc);
+  if (term_tag(val) == GOT) {
+    return (Copy){ term_new_got(0, lab, term_val(val)), term_new_got(1, lab, term_val(val)) };
+  }
   return (Copy){ term_new_dp0(lab, loc), term_new_dp1(lab, loc) };
 }
 
