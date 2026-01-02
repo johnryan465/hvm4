@@ -2,7 +2,7 @@
 // -------------------- APP-MOV
 // %x=v; (body arg)
 fn Term wnf_app_mov(Term mov, Term arg) {
-  ITRS++;
+  // ITRS++; // Commutation is free
   u32 loc = term_val(mov);
   u32 lab = term_ext(mov);
   Term bod = heap_read(loc + 1);

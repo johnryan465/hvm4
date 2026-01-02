@@ -4,7 +4,7 @@
 // % G = g
 // X ← (F ~> G)
 fn Term wnf_mov_red(u32 lab, u32 loc, u8 side, Term red) {
-  ITRS++;
+  // ITRS++; // Commutation is free
   u32  r_loc = term_val(red);
   u64  base  = heap_alloc(4);
   u32  at    = (u32)base;

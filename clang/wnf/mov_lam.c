@@ -2,18 +2,17 @@ fn Term wnf_mov_lam(u32 lab, u32 loc, u8 side, Term lam) {
   if (lab == 0) {
     lab = __atomic_fetch_add(&PARSE_FRESH_LAB, 1, __ATOMIC_RELAXED);
   }
-  ITRS++;
-  u32  lam_loc = term_val(lam);
-  u32  lam_ext = term_ext(lam);
-  Term bod     = heap_read(lam_loc);
-
-  // If the binder already contains a SUP, just take our side
+  // If the binder already contains a SUP, just take our side (FREE)
   Term cell = heap_read(loc);
   if (term_tag(cell) == SUP && term_ext(cell) == lab) {
     return heap_read(term_val(cell) + side);
   }
 
-  // Otherwise, perform the interaction
+  // Otherwise, perform the interaction (COUNTED)
+  ITRS++;
+  u32  lam_loc = term_val(lam);
+  u32  lam_ext = term_ext(lam);
+  Term bod     = heap_read(lam_loc);
   u64 a = heap_alloc(5);
   heap_write(a + 4, bod);
   Copy B = term_clone_at(a + 4, lab);

@@ -9,10 +9,10 @@
 //   X₀ ← &R{A₀,B₀}
 //   X₁ ← &R{A₁,B₁}
 fn Term wnf_dup_sup(u32 lab, u32 loc, u8 side, Term sup) {
-  ITRS++;
   u32 sup_loc = term_val(sup);
   u32 sup_lab = term_ext(sup);
   if (lab == sup_lab) {
+    // ITRS++; // Annihilation is free
     Term tm0 = heap_read(sup_loc + 0);
     Term tm1 = heap_read(sup_loc + 1);
     return heap_subst_cop(side, loc, tm0, tm1);

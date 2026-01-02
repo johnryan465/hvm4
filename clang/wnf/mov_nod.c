@@ -5,7 +5,7 @@
 // ...
 // X ← T{A,B,...}
 fn Term wnf_mov_nod(u32 lab, u32 loc, u8 side, Term term) {
-  ITRS++;
+  // ITRS++; // Commutation is free
   u32 ari = term_arity(term);
   if (ari == 0) {
     heap_subst_var(loc, term);

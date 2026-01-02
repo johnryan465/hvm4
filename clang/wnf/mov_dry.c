@@ -4,7 +4,7 @@
 // % A = a
 // X ← ^(F A)
 fn Term wnf_mov_dry(u32 lab, u32 loc, u8 side, Term dry) {
-  ITRS++;
+  // ITRS++; // Commutation is free
   u32  d_loc = term_val(dry);
   u64  base  = heap_alloc(4);
   u32  at    = (u32)base;
