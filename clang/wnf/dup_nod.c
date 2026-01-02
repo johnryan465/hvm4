@@ -7,9 +7,7 @@
 // X₁ ← T{A₁,B₁,...}
 fn Term wnf_dup_nod(u32 lab, u32 loc, u8 side, Term term) {
   if (term_tag(term) == GOT) {
-    Term r0 = term_new_got(0, lab, term_val(term));
-    Term r1 = term_new_got(1, lab, term_val(term));
-    return heap_subst_cop(side, loc, r0, r1);
+    return heap_subst_cop(side, loc, term, term);
   }
   ITRS++;
   u32 ari = term_arity(term);
