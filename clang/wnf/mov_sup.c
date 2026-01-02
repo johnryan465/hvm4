@@ -18,10 +18,7 @@ fn Term wnf_mov_sup(u32 lab, u32 loc, u8 side, Term sup) {
     Term tm1   = heap_read(s_loc + 1);
 
     // Update the MOV binder with a SUP so other GOT terms can find their branch
-    u64 res_loc = heap_alloc(2);
-    heap_write(res_loc + 0, tm0);
-    heap_write(res_loc + 1, tm1);
-    heap_set(loc, term_new(0, SUP, lab, (u32)res_loc));
+    heap_set(loc, term_new_sup(lab, tm0, tm1));
 
     return side == 0 ? tm0 : tm1;
   } else {

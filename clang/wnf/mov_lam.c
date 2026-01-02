@@ -24,16 +24,22 @@ fn Term wnf_mov_lam(u32 lab, u32 loc, u8 side, Term lam) {
   Term l0 = term_new(0, LAM, lam_ext, a + 0);
   Term l1 = term_new(0, LAM, lam_ext, a + 1);
   
-  // Update lambda variable with the SUP
-  heap_subst_var(lam_loc, su);
+    // Update lambda variable with the SUP
   
-  // Update the MOV binder with a SUP of the two LAMs
-  // This allows other GOT terms to find their respective LAM
-  u64 s_loc = heap_alloc(2);
-  heap_write(s_loc + 0, l0);
-  heap_write(s_loc + 1, l1);
-  Term res_su = term_new(0, SUP, lab, (u32)s_loc);
-  heap_set(loc, res_su);
-
-  return side == 0 ? l0 : l1;
-}
+    heap_subst_var(lam_loc, su);
+  
+    
+  
+    // Update the MOV binder with a SUP of the two LAMs
+  
+    // This allows other GOT terms to find their respective LAM
+  
+    heap_set(loc, term_new_sup(lab, l0, l1));
+  
+  
+  
+    return side == 0 ? l0 : l1;
+  
+  }
+  
+  
