@@ -1,7 +1,9 @@
-fn Term term_new_mov_at(u32 loc, Term val, Term bod) {
-  return term_new_at(loc, MOV, 0, 2, (Term[]){val, bod});
+fn Term term_new_mov_at(u64 loc, u32 lab, Term val, Term bod) {
+  heap_write(loc + 0, val);
+  heap_write(loc + 1, bod);
+  return term_new(0, MOV, lab, (u32)loc);
 }
 
-fn Term term_new_mov(Term val, Term bod) {
-  return term_new_mov_at(heap_alloc(2), val, bod);
+fn Term term_new_mov(u32 lab, Term val, Term bod) {
+  return term_new_mov_at(heap_alloc(2), lab, val, bod);
 }

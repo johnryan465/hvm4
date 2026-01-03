@@ -1,0 +1,25 @@
+// Test 1: Shared Lambda Integrity
+// Branch A MOVES the lambda and uses it.
+// Branch B KEEPS the lambda and uses it.
+
+@id = λx. x
+
+@test_shared_lam =
+  // 1. Create a Lambda
+  ! f = @id;
+  
+  // 2. Share it (DUP). 'f' is auto-duplicated by the lambda below.
+  (λ&f_dup.
+    // 3. Branch A: Uses a MOV (%) node to consume f_dup₀
+    //    If the bug exists, this MOVE corrupts the underlying lambda body.
+    ! res_a = (% m = f_dup₀; m(10));
+    
+    // 4. Branch B: Uses f_dup₁ normally. 
+    //    If 'f_dup₀' corrupted the memory, 'f_dup₁' will be broken here.
+    ! res_b = f_dup₁(20);
+    
+    // 5. Result should be #Pair{10, 20}
+    #Pair{res_a, res_b}
+  )(f)
+
+@main = @test_shared_lam

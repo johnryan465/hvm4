@@ -1,0 +1,1083 @@
+diff --git a/bounty.c b/bounty.c
+new file mode 100644
+index 0000000..818eca6
+--- /dev/null
++++ b/bounty.c
+@@ -0,0 +1,88 @@
++// PROBLEM: in the code below:
++// 1. both versions of @insert should output the same result with -C1
++// 2. the second version should take <50k interactions to halt
++// yet, on HVM4's current MOV node implementation, the outputs mismatch. why?
++// your goal is to find out, and fix HVM4 so that both points above hold.
++// $10k bounty: https://x.com/VictorTaelin/status/2006818916211834900
++
++@tail = λ{[]:[];<>:λa.λb.b}
++
++// List ::= Cons List | Succ List | Nil
++@C = λt. λc. λs. λn. c(t)
++@S = λp. λc. λs. λn. s(p)
++@N =     λc. λs. λn. n
++
++// Bits ::= O Bits | I Bits | E
++@O = λp. λo. λi. λe. o(p)
++@I = λp. λo. λi. λe. i(p)
++@E =     λo. λi. λe. e
++
++// ℕ → U32 → Bin -- converts a U32 to a Bin with a given size
++@bin = λ{
++  0n: λn. λo.λi.λe.e;
++  1n+: λ&l. λ&n. (λ{
++    0: λo.λi.λe.o(@bin(l, n/2))
++    1: λo.λi.λe.i(@bin(l, n/2))
++  })(n % 2)
++}
++
++// Bin → (P → P) → P → P -- applies a function N times to an argument
++@rep = λxs.
++  ! O = λp.λ&f.λx.@rep(p,λk.f(f(k)),x)
++  ! I = λp.λ&f.λx.@rep(p,λk.f(f(k)),f(x))
++  ! E = λf.λx.x
++  xs(O, I, E)
++
++// [1,2,3] ::= Cons (Succ (Cons (Succ (Succ (Cons (Succ (Succ (Succ Nil))))))))
++@to_nats_go = λxs. λn.
++  ! C = λt. λn. n <> @to_nats_go(t, 0n)
++  ! S = λp. λn. @to_nats_go(p, 1n+n)
++  ! N = λn. [n]
++  xs(C, S, N, n)
++
++@to_nats = λxs.
++  @tail(@to_nats_go(xs,0n))
++
++@view = λxs.
++  ! O = λp. #O{@view(p)}
++  ! I = λp. #I{@view(p)}
++  ! E = #E
++  xs(O, I, E)
++
++// control: using DUP nodes (this works)
++@insert_A = λn.
++  ! O = &{}
++  ! I = (λ&p. λxs. λ&o. λi. λe.
++    ! O = λxs. o(@insert_A(p, xs))
++    ! I = λxs. i(@insert_A(p, xs))
++    ! E = o(@insert_A(p, @N))
++    xs(O, I, E))
++  ! E = λxs. λo. λ&i. λe.
++    ! O = λxs. i(xs)
++    ! I = λxs. i(xs)
++    ! E = i(@N)
++    xs(O, I, E)
++  n(O, I, E)
++
++// problem: using MOV nodes (this fails)
++@insert_B = λn.
++  ! O = &{}
++  ! I = (λ&p. λxs. λ&o. λi. λe.
++    % f = o
++    ! O = λxs. f(@insert_B(p, xs))
++    ! I = λxs. i(@insert_B(p, xs))
++    ! E = f(@insert_B(p, @N))
++    xs(O, I, E))
++  ! E = λxs. λo. λ&i. λe.
++    % k = i
++    ! O = λxs. k(xs)
++    ! I = λxs. k(xs)
++    ! E = k(@N)
++    xs(O, I, E)
++  n(O, I, E)
++
++// this should produce the same output with either @insert fns above when
++// running it with `HVM4 -C1`, but, currently, the outputs mismatch...
++@main =
++  ! ins = @insert_B(@I(@I(@I(@I(@E)))))
++  @view(@rep(@bin(16n,512), ins, @O(@O(@O(@O(@O(@O(@E))))))))
+diff --git a/bounty_A.hvm4 b/bounty_A.hvm4
+new file mode 100644
+index 0000000..41a68d0
+--- /dev/null
++++ b/bounty_A.hvm4
+@@ -0,0 +1,88 @@
++// PROBLEM: in the code below:
++// 1. both versions of @insert should output the same result with -C1
++// 2. the second version should take <50k interactions to halt
++// yet, on HVM4's current MOV node implementation, the outputs mismatch. why?
++// your goal is to find out, and fix HVM4 so that both points above hold.
++// $10k bounty: https://x.com/VictorTaelin/status/2006818916211834900
++
++@tail = λ{[]:[];<>:λa.λb.b}
++
++// List ::= Cons List | Succ List | Nil
++@C = λt. λc. λs. λn. c(t)
++@S = λp. λc. λs. λn. s(p)
++@N =     λc. λs. λn. n
++
++// Bits ::= O Bits | I Bits | E
++@O = λp. λo. λi. λe. o(p)
++@I = λp. λo. λi. λe. i(p)
++@E =     λo. λi. λe. e
++
++// ℕ → U32 → Bin -- converts a U32 to a Bin with a given size
++@bin = λ{
++  0n: λn. λo.λi.λe.e;
++  1n+: λ&l. λ&n. (λ{
++    0: λo.λi.λe.o(@bin(l, n/2))
++    1: λo.λi.λe.i(@bin(l, n/2))
++  })(n % 2)
++}
++
++// Bin → (P → P) → P → P -- applies a function N times to an argument
++@rep = λxs.
++  ! O = λp.λ&f.λx.@rep(p,λk.f(f(k)),x)
++  ! I = λp.λ&f.λx.@rep(p,λk.f(f(k)),f(x))
++  ! E = λf.λx.x
++  xs(O, I, E)
++
++// [1,2,3] ::= Cons (Succ (Cons (Succ (Succ (Cons (Succ (Succ (Succ Nil))))))))
++@to_nats_go = λxs. λn.
++  ! C = λt. λn. n <> @to_nats_go(t, 0n)
++  ! S = λp. λn. @to_nats_go(p, 1n+n)
++  ! N = λn. [n]
++  xs(C, S, N, n)
++
++@to_nats = λxs.
++  @tail(@to_nats_go(xs,0n))
++
++@view = λxs.
++  ! O = λp. #O{@view(p)}
++  ! I = λp. #I{@view(p)}
++  ! E = #E
++  xs(O, I, E)
++
++// control: using DUP nodes (this works)
++@insert_A = λn.
++  ! O = &{}
++  ! I = (λ&p. λxs. λ&o. λi. λe.
++    ! O = λxs. o(@insert_A(p, xs))
++    ! I = λxs. i(@insert_A(p, xs))
++    ! E = o(@insert_A(p, @N))
++    xs(O, I, E))
++  ! E = λxs. λo. λ&i. λe.
++    ! O = λxs. i(xs)
++    ! I = λxs. i(xs)
++    ! E = i(@N)
++    xs(O, I, E)
++  n(O, I, E)
++
++// problem: using MOV nodes (this fails)
++@insert_B = λn.
++  ! O = &{}
++  ! I = (λ&p. λxs. λ&o. λi. λe.
++    % & f = o
++    ! O = λxs. f(@insert_B(p, xs))
++    ! I = λxs. i(@insert_B(p, xs))
++    ! E = f(@insert_B(p, @N))
++    xs(O, I, E))
++  ! E = λxs. λo. λ&i. λe.
++    % & k = i
++    ! O = λxs. k(xs)
++    ! I = λxs. k(xs)
++    ! E = k(@N)
++    xs(O, I, E)
++  n(O, I, E)
++
++// this should produce the same output with either @insert fns above when
++// running it with `HVM4 -C1`, but, currently, the outputs mismatch...
++@main =
++  ! ins = @insert_A(@I(@I(@I(@I(@E)))))
++  @view(@rep(@bin(16n,512), ins, @O(@O(@O(@O(@O(@O(@E))))))))
+diff --git a/bounty_B.hvm4 b/bounty_B.hvm4
+new file mode 100644
+index 0000000..6a75bd1
+--- /dev/null
++++ b/bounty_B.hvm4
+@@ -0,0 +1,88 @@
++// PROBLEM: in the code below:
++// 1. both versions of @insert should output the same result with -C1
++// 2. the second version should take <50k interactions to halt
++// yet, on HVM4's current MOV node implementation, the outputs mismatch. why?
++// your goal is to find out, and fix HVM4 so that both points above hold.
++// $10k bounty: https://x.com/VictorTaelin/status/2006818916211834900
++
++@tail = λ{[]:[];<>:λa.λb.b}
++
++// List ::= Cons List | Succ List | Nil
++@C = λt. λc. λs. λn. c(t)
++@S = λp. λc. λs. λn. s(p)
++@N =     λc. λs. λn. n
++
++// Bits ::= O Bits | I Bits | E
++@O = λp. λo. λi. λe. o(p)
++@I = λp. λo. λi. λe. i(p)
++@E =     λo. λi. λe. e
++
++// ℕ → U32 → Bin -- converts a U32 to a Bin with a given size
++@bin = λ{
++  0n: λn. λo.λi.λe.e;
++  1n+: λ&l. λ&n. (λ{
++    0: λo.λi.λe.o(@bin(l, n/2))
++    1: λo.λi.λe.i(@bin(l, n/2))
++  })(n % 2)
++}
++
++// Bin → (P → P) → P → P -- applies a function N times to an argument
++@rep = λxs.
++  ! O = λp.λ&f.λx.@rep(p,λk.f(f(k)),x)
++  ! I = λp.λ&f.λx.@rep(p,λk.f(f(k)),f(x))
++  ! E = λf.λx.x
++  xs(O, I, E)
++
++// [1,2,3] ::= Cons (Succ (Cons (Succ (Succ (Cons (Succ (Succ (Succ Nil))))))))
++@to_nats_go = λxs. λn.
++  ! C = λt. λn. n <> @to_nats_go(t, 0n)
++  ! S = λp. λn. @to_nats_go(p, 1n+n)
++  ! N = λn. [n]
++  xs(C, S, N, n)
++
++@to_nats = λxs.
++  @tail(@to_nats_go(xs,0n))
++
++@view = λxs.
++  ! O = λp. #O{@view(p)}
++  ! I = λp. #I{@view(p)}
++  ! E = #E
++  xs(O, I, E)
++
++// control: using DUP nodes (this works)
++@insert_A = λn.
++  ! O = &{}
++  ! I = (λ&p. λxs. λ&o. λi. λe.
++    ! O = λxs. o(@insert_A(p, xs))
++    ! I = λxs. i(@insert_A(p, xs))
++    ! E = o(@insert_A(p, @N))
++    xs(O, I, E))
++  ! E = λxs. λo. λ&i. λe.
++    ! O = λxs. i(xs)
++    ! I = λxs. i(xs)
++    ! E = i(@N)
++    xs(O, I, E)
++  n(O, I, E)
++
++// problem: using MOV nodes (this fails)
++@insert_B = λn.
++  ! O = &{}
++  ! I = (λ&p. λxs. λ&o. λi. λe.
++    % & f = o
++    ! O = λxs. f(@insert_B(p, xs))
++    ! I = λxs. i(@insert_B(p, xs))
++    ! E = f(@insert_B(p, @N))
++    xs(O, I, E))
++  ! E = λxs. λo. λ&i. λe.
++    % & k = i
++    ! O = λxs. k(xs)
++    ! I = λxs. k(xs)
++    ! E = k(@N)
++    xs(O, I, E)
++  n(O, I, E)
++
++// this should produce the same output with either @insert fns above when
++// running it with `HVM4 -C1`, but, currently, the outputs mismatch...
++@main =
++  ! ins = @insert_B(@I(@I(@I(@I(@E)))))
++  @view(@rep(@bin(16n,512), ins, @O(@O(@O(@O(@O(@O(@E))))))))
+diff --git a/bounty_small.hvm4 b/bounty_small.hvm4
+new file mode 100644
+index 0000000..17d6790
+--- /dev/null
++++ b/bounty_small.hvm4
+@@ -0,0 +1,42 @@
++@tail = λ{[]:[];<>:λa.λb.b}
++@C = λt. λc. λs. λn. c(t)
++@S = λp. λc. λs. λn. s(p)
++@N =     λc. λs. λn. n
++@O = λp. λo. λi. λe. o(p)
++@I = λp. λo. λi. λe. i(p)
++@E =     λo. λi. λe. e
++@bin = λ{
++  0n: λn. λo.λi.λe.e;
++  1n+: λ&l. λ&n. (λ{
++    0: λo.λi.λe.o(@bin(l, n/2))
++    1: λo.λi.λe.i(@bin(l, n/2))
++  })(n % 2)
++}
++@rep = λxs.
++  ! O = λp.λ&f.λx.@rep(p,λk.f(f(k)),x)
++  ! I = λp.λ&f.λx.@rep(p,λk.f(f(k)),f(x))
++  ! E = λf.λx.x
++  xs(O, I, E)
++@view = λxs.
++  ! O = λp. #O{@view(p)}
++  ! I = λp. #I{@view(p)}
++  ! E = #E
++  xs(O, I, E)
++@insert_B = λn.
++  ! O = &{}
++  ! I = (λ&p. λxs. λ&o. λi. λe.
++    % f = o
++    ! O = λxs. f(@insert_B(p, xs))
++    ! I = λxs. i(@insert_B(p, xs))
++    ! E = f(@insert_B(p, @N))
++    xs(O, I, E))
++  ! E = λxs. λo. λ&i. λe.
++    % k = i
++    ! O = λxs. k(xs)
++    ! I = λxs. k(xs)
++    ! E = k(@N)
++    xs(O, I, E)
++  n(O, I, E)
++@main =
++  ! ins = @insert_B(@I(@I(@E)))
++  @view(@rep(@bin(4n,4), ins, @O(@E)))
+diff --git a/clang/cnf/_.c b/clang/cnf/_.c
+index 83e08e8..772e89c 100644
+--- a/clang/cnf/_.c
++++ b/clang/cnf/_.c
+@@ -22,6 +22,21 @@ fn Term cnf_at(Term term, u32 depth) {
+     case SUP: {
+       return term;
+     }
++    case GOT:
++    case DP0:
++    case DP1: {
++      u32 linked_loc = term_val(term);
++      if (linked_loc != 0) {
++        Term cell = heap_read(linked_loc);
++        // FIX: If it is a redirection (SUB bit set), clear the bit and follow it!
++        if (term_sub_get(cell)) {
++          return cnf_at(term_sub_set(cell, 0), depth);
++        }
++        // Otherwise, just follow the link normally
++        return cnf_at(cell, depth);
++      }
++      return term;
++    }
+ 
+     case INC: {
+       return term;
+@@ -73,7 +88,6 @@ fn Term cnf_at(Term term, u32 depth) {
+       return term_new_sup(lab, lam0, lam1);
+     }
+ 
+-    case DUP:
+     case MOV:
+     case APP:
+     case DRY:
+@@ -180,4 +194,4 @@ fn Term cnf_inj(Term template, Term *args, u32 n_args) {
+     Term applied = term_new_app(template, head);
+     return cnf_inj(applied, args + 1, n_args - 1);
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/clang/hvm4.c b/clang/hvm4.c
+index 65432a5..7251a5e 100644
+--- a/clang/hvm4.c
++++ b/clang/hvm4.c
+@@ -263,7 +263,7 @@ static char  *PARSE_SEEN_FILES[1024];
+ static u32    PARSE_SEEN_FILES_LEN = 0;
+ static PBind  PARSE_BINDS[16384];
+ static u32    PARSE_BINDS_LEN = 0;
+-static u32    PARSE_FRESH_LAB = 0x800000; // start at 2^23 to avoid collision with user labels
++static u32    PARSE_FRESH_LAB = 0x400000; // start at 2^22 to avoid collision with user labels and fit in 24-bit EXT with side bit
+ static int    PARSE_FORK_SIDE = -1;      // -1 = off, 0 = left branch (DP0), 1 = right branch (DP1)
+ 
+ // Term
+@@ -415,6 +415,7 @@ static int    PARSE_FORK_SIDE = -1;      // -1 = off, 0 = left branch (DP0), 1 =
+ #include "wnf/app_nam.c"
+ #include "wnf/app_dry.c"
+ #include "wnf/app_lam.c"
++#include "wnf/app_mov.c"
+ #include "wnf/app_sup.c"
+ #include "wnf/app_inc.c"
+ #include "wnf/app_mat_sup.c"
+diff --git a/clang/parse/term/mov.c b/clang/parse/term/mov.c
+index afc705c..5aef7ad 100644
+--- a/clang/parse/term/mov.c
++++ b/clang/parse/term/mov.c
+@@ -2,6 +2,7 @@ fn Term parse_term(PState *s, u32 depth);
+ 
+ fn Term parse_term_mov(PState *s, u32 depth) {
+   parse_skip(s);
++  u32 cloned = parse_match(s, "&");
+   u32 nam = parse_name(s);
+   parse_skip(s);
+   parse_consume(s, "=");
+@@ -9,11 +10,16 @@ fn Term parse_term_mov(PState *s, u32 depth) {
+   parse_skip(s);
+   parse_match(s, ";");
+   parse_skip(s);
+-  parse_bind_push(nam, depth, 0, PBIND_MOV, 0);
++  u32 lab = PARSE_FRESH_LAB++;
++  parse_bind_push(nam, depth, lab, PBIND_MOV, cloned);
+   Term body = parse_term(s, depth + 1);
++  u32 uses = parse_bind_get_uses();
++  if (!cloned && uses > 1) {
++    parse_error_affine(nam, uses, 0, "% &");
++  }
++  if (cloned) {
++    body = parse_auto_dup(body, depth + 1, depth + 1, BJM, lab);
++  }
+   parse_bind_pop();
+-  u64 loc = heap_alloc(2);
+-  HEAP[loc + 0] = val;
+-  HEAP[loc + 1] = body;
+-  return term_new(0, MOV, 0, loc);
++  return term_new_mov(lab, val, body);
+ }
+diff --git a/clang/parse/term/var.c b/clang/parse/term/var.c
+index 4a406eb..3ff2ecd 100644
+--- a/clang/parse/term/var.c
++++ b/clang/parse/term/var.c
+@@ -19,7 +19,7 @@ fn Term parse_term_var(PState *s, u32 depth) {
+     if (side != -1) {
+       parse_error_var("- mov variable '%s' can't use subscript ₀ or ₁\n", nam);
+     }
+-    return term_new(0, BJM, 0, (u32)lvl);
++    return term_new(0, BJM, lab, (u32)lvl);
+   }
+   if (kind == PBIND_DUP) {
+     // Handle dynamic dup binding (lab=0xFFFFFF marker)
+diff --git a/clang/print/term.c b/clang/print/term.c
+index 7bc4149..ad9b945 100644
+--- a/clang/print/term.c
++++ b/clang/print/term.c
+@@ -367,7 +367,7 @@ fn void print_term_go(FILE *f, Term term, u32 depth, PrintState *st) {
+           val = term_sub_set(val, 0);
+           print_term_mode(f, val, depth, 0, 0, 0, st);
+         } else {
+-          print_term_mode(f, term_new_got(bind), depth, 0, 0, 0, st);
++          print_term_mode(f, term_new_got(0, 0, bind), depth, 0, 0, 0, st);
+         }
+       } else {
+         u32 nam = (lvl > st->subst_len) ? (lvl - st->subst_len) : 0;
+diff --git a/clang/term/clone.c b/clang/term/clone.c
+index e83d869..e5a0873 100644
+--- a/clang/term/clone.c
++++ b/clang/term/clone.c
+@@ -1,4 +1,8 @@
+ fn Copy term_clone_at(u32 loc, u32 lab) {
++  Term val = heap_read(loc);
++  if (term_tag(val) == GOT) {
++    return (Copy){ term_new_got(0, lab, term_val(val)), term_new_got(1, lab, term_val(val)) };
++  }
+   return (Copy){ term_new_dp0(lab, loc), term_new_dp1(lab, loc) };
+ }
+ 
+diff --git a/clang/term/new/got.c b/clang/term/new/got.c
+index 1ce06bf..b912def 100644
+--- a/clang/term/new/got.c
++++ b/clang/term/new/got.c
+@@ -1,3 +1,4 @@
+-fn Term term_new_got(u32 loc) {
+-  return term_new(0, GOT, 0, loc);
++fn Term term_new_got(u32 side, u32 lab, u32 loc) {
++  u32 ext = (lab << 1) | (side & 1);
++  return term_new(0, GOT, ext, loc);
+ }
+diff --git a/clang/term/new/mov.c b/clang/term/new/mov.c
+index dbb2b15..36df7fa 100644
+--- a/clang/term/new/mov.c
++++ b/clang/term/new/mov.c
+@@ -1,7 +1,7 @@
+-fn Term term_new_mov_at(u32 loc, Term val, Term bod) {
+-  return term_new_at(loc, MOV, 0, 2, (Term[]){val, bod});
++fn Term term_new_mov_at(u32 loc, u32 lab, Term val, Term bod) {
++  return term_new_at(loc, MOV, lab, 2, (Term[]){val, bod});
+ }
+ 
+-fn Term term_new_mov(Term val, Term bod) {
+-  return term_new_mov_at(heap_alloc(2), val, bod);
+-}
++fn Term term_new_mov(u32 lab, Term val, Term bod) {
++  return term_new_mov_at(heap_alloc(2), lab, val, bod);
++}
+\ No newline at end of file
+diff --git a/clang/wnf/_.c b/clang/wnf/_.c
+index e3ae06f..0b33432 100644
+--- a/clang/wnf/_.c
++++ b/clang/wnf/_.c
+@@ -47,15 +47,19 @@ __attribute__((hot)) fn Term wnf(Term term) {
+ 
+       case GOT: {
+         u32 loc = term_val(next);
+-        Term cell = heap_take(loc);
++        u32 ext = term_ext(next);
++        Term cell = heap_read(loc);
+         if (term_sub_get(cell)) {
+           next = term_sub_set(cell, 0);
+           goto enter;
+         }
+-        if (term_tag(cell) == GOT) {
+-          stack[s_pos++] = next;
+-          whnf = cell;
+-          goto apply;
++        // Fast-path: GOT-SUP annihilation
++        if (term_tag(cell) == SUP && term_ext(cell) == (ext >> 1)) {
++          ITRS++;
++          u32 s_loc = term_val(cell);
++          u8  side  = ext & 1;
++          next = heap_read(s_loc + side);
++          goto enter;
+         }
+         stack[s_pos++] = next;
+         next = cell;
+@@ -70,25 +74,6 @@ __attribute__((hot)) fn Term wnf(Term term) {
+         goto enter;
+       }
+ 
+-      case DUP: {
+-        u32  loc  = term_val(next);
+-        Term body = heap_read(loc + 1);
+-        next = body;
+-        goto enter;
+-      }
+-
+-      case MOV: {
+-        u32  loc  = term_val(next);
+-        Term body = heap_read(loc + 1);
+-        next = body;
+-        goto enter;
+-      }
+-
+-      case UNS: {
+-        next = wnf_uns(next);
+-        goto enter;
+-      }
+-
+       case REF: {
+         u32 nam = term_ext(next);
+         if (BOOK[nam] != 0) {
+@@ -125,7 +110,7 @@ __attribute__((hot)) fn Term wnf(Term term) {
+             goto enter;
+           }
+           case BJM: {
+-            next = wnf_alo_got(ls_loc, len, term_val(book));
++            next = wnf_alo_got(ls_loc, len, term_val(book), term_ext(book));
+             goto enter;
+           }
+           case BJ0:
+@@ -169,7 +154,7 @@ __attribute__((hot)) fn Term wnf(Term term) {
+             goto enter;
+           }
+           case MOV: {
+-            next = wnf_alo_mov(ls_loc, len, term_val(book));
++            next = wnf_alo_mov(ls_loc, len, term_val(book), term_ext(book));
+             goto enter;
+           }
+           case NUM: {
+@@ -233,6 +218,25 @@ __attribute__((hot)) fn Term wnf(Term term) {
+         goto enter;
+       }
+ 
++      case DUP: {
++        u32  loc  = term_val(next);
++        Term body = heap_read(loc + 1);
++        next = body;
++        goto enter;
++      }
++
++      case MOV: {
++        u32  loc  = term_val(next);
++        Term body = heap_read(loc + 1);
++        next = body;
++        goto enter;
++      }
++
++      case UNS: {
++        next = wnf_uns(next);
++        goto enter;
++      }
++
+       case RED:
+       case NAM:
+       case BJV:
+@@ -300,6 +304,10 @@ __attribute__((hot)) fn Term wnf(Term term) {
+               next = wnf_app_lam(whnf, arg);
+               goto enter;
+             }
++            case MOV: {
++              whnf = wnf_app_mov(whnf, arg);
++              continue;
++            }
+             case SUP: {
+               whnf = wnf_app_sup(frame, whnf);
+               continue;
+@@ -657,6 +665,8 @@ __attribute__((hot)) fn Term wnf(Term term) {
+             case OP2:
+             case DSU:
+             case DDU:
++            case DUP:
++            case MOV:
+             case C00 ... C16: {
+               next = wnf_dup_nod(lab, loc, side, whnf);
+               goto enter;
+@@ -676,10 +686,13 @@ __attribute__((hot)) fn Term wnf(Term term) {
+         // -----------------------------------------------------------------------
+         case GOT: {
+           u32 loc = term_val(frame);
++          u32 ext = term_ext(frame);
++          u32 lab = ext >> 1;
++          u8  side = ext & 1;
+ 
+           switch (term_tag(whnf)) {
+             case GOT: {
+-              Term val = wnf_mov_mov(loc, whnf);
++              Term val = wnf_mov_mov(loc, whnf, lab, side);
+               stack[s_pos++] = frame;
+               next = val;
+               goto enter;
+@@ -689,29 +702,29 @@ __attribute__((hot)) fn Term wnf(Term term) {
+             case BJM:
+             case BJ0:
+             case BJ1: {
+-              whnf = wnf_mov_nam(loc, whnf);
++              whnf = wnf_mov_nam(lab, loc, side, whnf);
+               continue;
+             }
+             case DRY: {
+-              whnf = wnf_mov_dry(loc, whnf);
++              whnf = wnf_mov_dry(lab, loc, side, whnf);
+               continue;
+             }
+             case RED: {
+-              whnf = wnf_mov_red(loc, whnf);
++              whnf = wnf_mov_red(lab, loc, side, whnf);
+               continue;
+             }
+             case LAM: {
+-              whnf = wnf_mov_lam(loc, whnf);
++              whnf = wnf_mov_lam(lab, loc, side, whnf);
+               continue;
+             }
+             case SUP: {
+-              next = wnf_mov_sup(loc, whnf);
++              next = wnf_mov_sup(lab, loc, side, whnf);
+               goto enter;
+             }
+             case ERA:
+             case ANY:
+             case NUM: {
+-              whnf = wnf_mov_nod(loc, whnf);
++              whnf = wnf_mov_nod(lab, loc, side, whnf);
+               continue;
+             }
+             // case APP: // !! DO NOT ADD: GOT does not interact with APP.
+@@ -722,14 +735,16 @@ __attribute__((hot)) fn Term wnf(Term term) {
+             case OP2:
+             case DSU:
+             case DDU:
++            case DUP:
++            case MOV:
+             case C00 ... C16: {
+-              next = wnf_mov_nod(loc, whnf);
++              next = wnf_mov_nod(lab, loc, side, whnf);
+               goto enter;
+             }
+             default: {
+               u64 new_loc = heap_alloc(1);
+               heap_set(new_loc, whnf);
+-              Term got = term_new_got(new_loc);
++              Term got = term_new_got(side, lab, new_loc);
+               heap_subst_var(loc, got);
+               whnf = got;
+               continue;
+diff --git a/clang/wnf/alo_got.c b/clang/wnf/alo_got.c
+index 34f62a0..293cb01 100644
+--- a/clang/wnf/alo_got.c
++++ b/clang/wnf/alo_got.c
+@@ -1,9 +1,9 @@
+ // @{s} n
+ // ------ ALO-GOT
+ // s[n] or n when substitution missing (n is a de Bruijn level)
+-fn Term wnf_alo_got(u32 ls, u32 len, u32 lvl) {
++fn Term wnf_alo_got(u32 ls, u32 len, u32 lvl, u32 lab) {
+   if (lvl == 0 || lvl > len) {
+-    return term_new(0, BJM, 0, lvl);
++    return term_new(0, BJM, lab, lvl);
+   }
+   u32 idx = len - lvl;
+   u32 it  = ls;
+@@ -11,5 +11,5 @@ fn Term wnf_alo_got(u32 ls, u32 len, u32 lvl) {
+     it = (u32)(heap_read(it) & 0xFFFFFFFF);
+   }
+   u32 bind = (it != 0) ? (u32)(heap_read(it) >> 32) : 0;
+-  return bind ? term_new_got(bind) : term_new(0, BJM, 0, lvl);
+-}
++  return bind ? term_new_got(0, lab, bind) : term_new(0, BJM, lab, lvl);
++}
+\ No newline at end of file
+diff --git a/clang/wnf/alo_mov.c b/clang/wnf/alo_mov.c
+index 4ddb03e..eb1cc23 100644
+--- a/clang/wnf/alo_mov.c
++++ b/clang/wnf/alo_mov.c
+@@ -3,7 +3,7 @@
+ // x' ← fresh
+ // % x' = @{s} v
+ // @{x',s} t
+-fn Term wnf_alo_mov(u32 ls_loc, u32 len, u32 book_loc) {
++fn Term wnf_alo_mov(u32 ls_loc, u32 len, u32 book_loc, u32 lab) {
+   u64 mov_term_val = heap_alloc(1);
+   u64 bind_ent     = heap_alloc(1);
+   heap_set(bind_ent, ((u64)(u32)mov_term_val << 32) | ls_loc);
+@@ -14,5 +14,5 @@ fn Term wnf_alo_mov(u32 ls_loc, u32 len, u32 book_loc) {
+   heap_set(alo1, ((u64)ls_loc << 32) | (book_loc + 0));
+   u64 alo2 = heap_alloc(1);
+   heap_set(alo2, ((u64)(u32)bind_ent << 32) | (book_loc + 1));
+-  return term_new_mov(term_new(0, ALO, len, alo1), term_new(0, ALO, len + 1, alo2));
++  return term_new_mov(lab, term_new(0, ALO, len, alo1), term_new(0, ALO, len + 1, alo2));
+ }
+diff --git a/clang/wnf/app_mov.c b/clang/wnf/app_mov.c
+new file mode 100644
+index 0000000..eb6a90a
+--- /dev/null
++++ b/clang/wnf/app_mov.c
+@@ -0,0 +1,13 @@
++// ( (%x=v; body) arg )
++// -------------------- APP-MOV
++// %x=v; (body arg)
++fn Term wnf_app_mov(Term mov, Term arg) {
++  ITRS++;
++  u32 loc = term_val(mov);
++  u32 lab = term_ext(mov);
++  Term bod = heap_read(loc + 1);
++  u64 new_loc = heap_alloc(2);
++  heap_write(new_loc + 0, heap_read(loc + 0));
++  heap_write(new_loc + 1, term_new_app(bod, arg));
++  return term_new_mov_at((u32)new_loc, lab, heap_read(new_loc + 0), heap_read(new_loc + 1));
++}
+diff --git a/clang/wnf/dup_nod.c b/clang/wnf/dup_nod.c
+index 0ffee57..4426b2f 100644
+--- a/clang/wnf/dup_nod.c
++++ b/clang/wnf/dup_nod.c
+@@ -6,6 +6,11 @@
+ // X₀ ← T{A₀,B₀,...}
+ // X₁ ← T{A₁,B₁,...}
+ fn Term wnf_dup_nod(u32 lab, u32 loc, u8 side, Term term) {
++  if (term_tag(term) == GOT) {
++    Term r0 = term_new_got(0, lab, term_val(term));
++    Term r1 = term_new_got(1, lab, term_val(term));
++    return heap_subst_cop(side, loc, r0, r1);
++  }
+   ITRS++;
+   u32 ari = term_arity(term);
+   if (ari == 0) {
+@@ -21,6 +26,7 @@ fn Term wnf_dup_nod(u32 lab, u32 loc, u8 side, Term term) {
+   u32  r1_loc = r0_loc + ari;
+   for (u32 i = 0; i < ari; i++) {
+     heap_write(vals + i, heap_read(t_loc + i));
++    // Disabled MOV shunting optimization to test for correctness.
+     Copy A = term_clone_at(vals + i, lab);
+     heap_write(r0_loc + i, A.k0);
+     heap_write(r1_loc + i, A.k1);
+@@ -28,4 +34,4 @@ fn Term wnf_dup_nod(u32 lab, u32 loc, u8 side, Term term) {
+   Term r0 = term_new(0, t_tag, t_ext, r0_loc);
+   Term r1 = term_new(0, t_tag, t_ext, r1_loc);
+   return heap_subst_cop(side, loc, r0, r1);
+-}
++}
+\ No newline at end of file
+diff --git a/clang/wnf/mov_dry.c b/clang/wnf/mov_dry.c
+index 65193b3..75d6c56 100644
+--- a/clang/wnf/mov_dry.c
++++ b/clang/wnf/mov_dry.c
+@@ -1,17 +1,17 @@
+-// % X = ^(f x)
++// % X = ^(f a)
+ // -------------- MOV-DRY
+ // % F = f
+-// % A = x
++// % A = a
+ // X ← ^(F A)
+-fn Term wnf_mov_dry(u32 loc, Term dry) {
++fn Term wnf_mov_dry(u32 lab, u32 loc, u8 side, Term dry) {
+   ITRS++;
+   u32  d_loc = term_val(dry);
+   u64  base  = heap_alloc(4);
+   u32  at    = (u32)base;
+   heap_write(at + 0, heap_read(d_loc + 0));
+   heap_write(at + 1, heap_read(d_loc + 1));
+-  Term f     = term_new_got(at + 0);
+-  Term a     = term_new_got(at + 1);
++  Term f     = term_new_got(side, lab, at + 0);
++  Term a     = term_new_got(side, lab, at + 1);
+   Term res   = term_new_dry_at(at + 2, f, a);
+   heap_subst_var(loc, res);
+   return res;
+diff --git a/clang/wnf/mov_lam.c b/clang/wnf/mov_lam.c
+index a43144c..f723137 100644
+--- a/clang/wnf/mov_lam.c
++++ b/clang/wnf/mov_lam.c
+@@ -1,20 +1,35 @@
+-// % F = λx.f
+-// ---------- MOV-LAM
+-// F ← λx.G
+-// % G = f
+-fn Term wnf_mov_lam(u32 loc, Term lam) {
++fn Term wnf_mov_lam(u32 lab, u32 loc, u8 side, Term lam) {
++  // 1. Ensure valid label
++  if (lab == 0) {
++    lab = __atomic_fetch_add(&PARSE_FRESH_LAB, 1, __ATOMIC_RELAXED);
++  }
++
++  // 2. Standard Interaction (keep ITRS++)
+   ITRS++;
+   u32  lam_loc = term_val(lam);
+   u32  lam_ext = term_ext(lam);
+   Term bod     = heap_read(lam_loc);
+ 
+-  u64  base    = heap_alloc(2);
+-  u32  g_loc   = (u32)base;
+-  u32  x_loc   = g_loc + 1;
+-  heap_write(g_loc, bod);
+-  heap_write(x_loc, term_new_got(g_loc));
+-  heap_subst_var(lam_loc, term_new(0, VAR, 0, x_loc));
+-  Term res     = term_new(0, LAM, lam_ext, x_loc);
++  // 3. Shunting Optimization: Clone the body directly
++  u64  a = heap_alloc(5);
++  heap_write(a + 4, bod);
++  Copy B = term_clone_at(a + 4, lab); 
++
++  // 4. Setup the Split (Side 0 and Side 1)
++  heap_write(a + 0, B.k0); // Clone for Side 0
++  heap_write(a + 1, B.k1); // Clone for Side 1
++  
++  // 5. Insert SUP to mediate access
++  heap_write(a + 2, term_new(0, VAR, 0, a + 0));
++  heap_write(a + 3, term_new(0, VAR, 0, a + 1));
++  Term su = term_new(0, SUP, lab, a + 2);
++  heap_subst_var(lam_loc, su);
++
++  // 6. Return the CORRECT side (The Bug Fix)
++  // Was: a + 0
++  // Now: a + side
++  Term res = term_new(0, LAM, lam_ext, a + side);
+   heap_subst_var(loc, res);
++  
+   return res;
+-}
++}
+\ No newline at end of file
+diff --git a/clang/wnf/mov_mov.c b/clang/wnf/mov_mov.c
+index 60f96b0..dd9c59f 100644
+--- a/clang/wnf/mov_mov.c
++++ b/clang/wnf/mov_mov.c
+@@ -3,11 +3,11 @@
+ // ------- MOV-MOV
+ // A ← B
+ // % B = v
+-fn Term wnf_mov_mov(u32 b_loc, Term a_var) {
++fn Term wnf_mov_mov(u32 b_loc, Term a_var, u32 lab, u8 side) {
+   ITRS++;
+   u32  a_loc = term_val(a_var);
+   Term val   = heap_take(a_loc);
+-  heap_subst_var(a_loc, term_new_got(b_loc));
++  heap_subst_var(a_loc, term_new_got(side, lab, b_loc));
+   heap_set(b_loc, val);
+   return val;
+ }
+diff --git a/clang/wnf/mov_nam.c b/clang/wnf/mov_nam.c
+index ca0a41f..ae1b79f 100644
+--- a/clang/wnf/mov_nam.c
++++ b/clang/wnf/mov_nam.c
+@@ -1,7 +1,7 @@
+-// % X = name
++// % X = ^name
+ // ---------- MOV-NAM
+-// X ← name
+-fn Term wnf_mov_nam(u32 loc, Term nam) {
++// X ← ^name
++fn Term wnf_mov_nam(u32 lab, u32 loc, u8 side, Term nam) {
+   ITRS++;
+   heap_subst_var(loc, nam);
+   return nam;
+diff --git a/clang/wnf/mov_nod.c b/clang/wnf/mov_nod.c
+index 8da97a5..214500e 100644
+--- a/clang/wnf/mov_nod.c
++++ b/clang/wnf/mov_nod.c
+@@ -4,13 +4,16 @@
+ // % B = b
+ // ...
+ // X ← T{A,B,...}
+-fn Term wnf_mov_nod(u32 loc, Term term) {
++fn Term wnf_mov_nod(u32 lab, u32 loc, u8 side, Term term) {
+   ITRS++;
+   u32 ari = term_arity(term);
+   if (ari == 0) {
+     heap_subst_var(loc, term);
+     return term;
+   }
++  if (lab == 0) {
++    lab = __atomic_fetch_add(&PARSE_FRESH_LAB, 1, __ATOMIC_RELAXED);
++  }
+   u32  t_loc = term_val(term);
+   u32  t_ext = term_ext(term);
+   u8   t_tag = term_tag(term);
+@@ -19,9 +22,9 @@ fn Term wnf_mov_nod(u32 loc, Term term) {
+   u32  nod_loc = got_loc + ari;
+   for (u32 i = 0; i < ari; i++) {
+     heap_write(got_loc + i, heap_read(t_loc + i));
+-    heap_write(nod_loc + i, term_new_got(got_loc + i));
++    heap_write(nod_loc + i, term_new_got(side, lab, got_loc + i));
+   }
+   Term res = term_new(0, t_tag, t_ext, nod_loc);
+   heap_subst_var(loc, res);
+   return res;
+-}
++}
+\ No newline at end of file
+diff --git a/clang/wnf/mov_red.c b/clang/wnf/mov_red.c
+index 17d9574..2f23e9d 100644
+--- a/clang/wnf/mov_red.c
++++ b/clang/wnf/mov_red.c
+@@ -3,15 +3,15 @@
+ // % F = f
+ // % G = g
+ // X ← F ~> G
+-fn Term wnf_mov_red(u32 loc, Term red) {
++fn Term wnf_mov_red(u32 lab, u32 loc, u8 side, Term red) {
+   ITRS++;
+   u32  r_loc = term_val(red);
+   u64  base  = heap_alloc(4);
+   u32  at    = (u32)base;
+   heap_write(at + 0, heap_read(r_loc + 0));
+   heap_write(at + 1, heap_read(r_loc + 1));
+-  Term f     = term_new_got(at + 0);
+-  Term g     = term_new_got(at + 1);
++  Term f     = term_new_got(side, lab, at + 0);
++  Term g     = term_new_got(side, lab, at + 1);
+   Term res   = term_new_red_at(at + 2, f, g);
+   heap_subst_var(loc, res);
+   return res;
+diff --git a/clang/wnf/mov_sup.c b/clang/wnf/mov_sup.c
+index 160b28a..bd1804b 100644
+--- a/clang/wnf/mov_sup.c
++++ b/clang/wnf/mov_sup.c
+@@ -3,17 +3,25 @@
+ // % A = x
+ // % B = y
+ // K ← &L{A,B}
+-fn Term wnf_mov_sup(u32 loc, Term sup) {
+-  ITRS++;
+-  u32  s_loc = term_val(sup);
+-  u32  s_lab = term_ext(sup);
+-  u64  base  = heap_alloc(4);
+-  u32  at    = (u32)base;
+-  heap_write(at + 0, heap_read(s_loc + 0));
+-  heap_write(at + 1, heap_read(s_loc + 1));
+-  Term a     = term_new_got(at + 0);
+-  Term b     = term_new_got(at + 1);
+-  Term res   = term_new_sup_at(at + 2, s_lab, a, b);
+-  heap_subst_var(loc, res);
+-  return res;
++fn Term wnf_mov_sup(u32 lab, u32 loc, u8 side, Term sup) {
++  u32 s_lab = term_ext(sup);
++  if (lab == s_lab) {
++    ITRS++;
++    u32  s_loc = term_val(sup);
++    Term tm0   = heap_read(s_loc + 0);
++    Term tm1   = heap_read(s_loc + 1);
++    return heap_subst_cop(side, loc, tm0, tm1);
++  } else {
++    ITRS++;
++    u32  s_loc = term_val(sup);
++    u64  base  = heap_alloc(4);
++    u32  at    = (u32)base;
++    heap_write(at + 0, heap_read(s_loc + 0));
++    heap_write(at + 1, heap_read(s_loc + 1));
++    Term a     = term_new_got(side, lab, at + 0);
++    Term b     = term_new_got(side, lab, at + 1);
++    Term res   = term_new_sup_at(at + 2, s_lab, a, b);
++    heap_subst_var(loc, res);
++    return res;
++  }
+ }
+diff --git a/test_cons_commute.hvm4 b/test_cons_commute.hvm4
+new file mode 100644
+index 0000000..e33507d
+--- /dev/null
++++ b/test_cons_commute.hvm4
+@@ -0,0 +1,24 @@
++// Test 2: Constructor Commutation
++// Scenario: We pass a Data Structure (Constructor) into a MOV node.
++// Both branches receive a fully reconstructed copy.
++
++@test_cons_commute = 
++  // 1. Create a Pair (1, 2)
++  ! data = #Pair{1, 2};
++  
++  // 2. Put it in a MOV node
++  % moved = data;
++  
++  // 3. Distribute to two branches (auto-dup)
++  (λ&m.
++    // Branch A takes m₀ and extracts the first element.
++    ! val_a = (λp. λ{ #Pair: λa. λb. a }(p))(m₀);
++    
++    // Branch B takes m₁ and extracts the second element.
++    ! val_b = (λp. λ{ #Pair: λa. λb. b }(p))(m₁);
++    
++    // 4. Result should be #Pair{1, 2}
++    #Pair{val_a, val_b}
++  )(moved)
++
++@main = @test_cons_commute
+diff --git a/test_corrupted_twin.hvm4 b/test_corrupted_twin.hvm4
+new file mode 100644
+index 0000000..463f22f
+--- /dev/null
++++ b/test_corrupted_twin.hvm4
+@@ -0,0 +1,25 @@
++// Test 1: Shared Lambda Integrity
++// Branch A MOVES the lambda and uses it.
++// Branch B KEEPS the lambda and uses it.
++
++@id = λx. x
++
++@test_shared_lam =
++  // 1. Create a Lambda
++  ! f = @id;
++  
++  // 2. Share it (DUP). 'f' is auto-duplicated by the lambda below.
++  (λ&f_dup.
++    // 3. Branch A: Uses a MOV (%) node to consume f_dup₀
++    //    If the bug exists, this MOVE corrupts the underlying lambda body.
++    ! res_a = (% m = f_dup₀; m(10));
++    
++    // 4. Branch B: Uses f_dup₁ normally. 
++    //    If 'f_dup₀' corrupted the memory, 'f_dup₁' will be broken here.
++    ! res_b = f_dup₁(20);
++    
++    // 5. Result should be #Pair{10, 20}
++    #Pair{res_a, res_b}
++  )(f)
++
++@main = @test_shared_lam
+diff --git a/test_erasure.hvm4 b/test_erasure.hvm4
+new file mode 100644
+index 0000000..197c05b
+--- /dev/null
++++ b/test_erasure.hvm4
+@@ -0,0 +1,22 @@
++// Test 3: Erasure Handling
++// We MOV a value, but then one of the branches gets Erased.
++
++@test_erasure =
++  // 1. Create a value
++  ! val = 42;
++  
++  // 2. Move it
++  % m = val;
++  
++  // 3. Share it and erase one branch
++  (λ&m_dup.
++    // Branch A: Consumes the value
++    ! res = m_dup₀;
++    
++    // Branch B: Erased
++    ! dummy = (λx. &{})(m_dup₁);
++    
++    res
++  )(m)
++
++@main = @test_erasure
+\ No newline at end of file
